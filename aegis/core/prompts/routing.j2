@@ -1,0 +1,26 @@
+Classify the following user message into an intent category and assess its complexity.
+
+## Intent Categories
+1. direct_chat — Simple conversation, no tools needed
+2. knowledge_retrieval — Query against the knowledge base
+3. tool_use — Requires tool invocation (search, file ops, etc.)
+4. complex_delegation — Multi-step reasoning or planning
+5. multi_step — Sequential dependent tasks
+
+## Complexity Tiers
+- simple: No tool calls, single-turn, straightforward
+- medium: Single tool call or moderate reasoning needed
+- complex: Multi-step planning, multiple tools, or deep reasoning
+- heavy: Long-form generation (>1000 tokens expected)
+
+## User Message
+{{ message }}
+
+## Response Format (JSON)
+{
+  "intent": "<intent_category>",
+  "confidence": <0.0-1.0>,
+  "complexity": "<tier>",
+  "expected_output_length": "short|medium|long",
+  "reasoning": "<brief explanation>"
+}

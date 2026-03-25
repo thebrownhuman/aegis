@@ -1,0 +1,97 @@
+# Project Aegis Configuration
+# Environment variables override these defaults via ${VAR_NAME} interpolation
+
+app:
+  name: "Project Aegis"
+  version: "0.1.0"
+  debug: false
+  host: "0.0.0.0"
+  port: 8000
+
+# --- Database ---
+database:
+  url: "sqlite:///data/aegis.db"
+  echo: false  # SQL query logging (dev only)
+
+# --- Ollama (local LLM) ---
+ollama:
+  base_url: "http://localhost:11434"
+  orchestrator_model: "qwen3:1.7b"
+  embedding_model: "nomic-embed-text"
+  timeout: 120  # seconds
+
+# --- Qdrant (vector DB) ---
+qdrant:
+  host: "localhost"
+  port: 6333
+  grpc_port: 6334
+
+# --- Provider API Keys (from environment) ---
+providers:
+  nim:
+    api_keys: []  # Populated from NIM_API_KEY_1..4 env vars
+    base_url: "https://integrate.api.nvidia.com/v1"
+    default_model: "meta/llama-3.1-70b-instruct"
+    timeout: 60
+
+  deepseek:
+    api_keys: []  # Populated from DEEPSEEK_API_KEY_1..4 env vars
+    base_url: "https://api.deepseek.com"
+    reasoning_model: "deepseek-reasoner"
+    general_model: "deepseek-chat"
+    timeout: 90
+
+  mistral:
+    api_key: ""  # From MISTRAL_API_KEY env var
+    default_model: "mistral-small-latest"
+    timeout: 30
+
+  groq:
+    api_key: ""  # From GROQ_API_KEY env var
+    default_model: "llama-3.1-70b-versatile"
+    timeout: 30
+
+  gemini:
+    api_key: ""  # From GEMINI_API_KEY env var
+    default_model: "gemini-2.0-flash"
+    timeout: 30
+
+# --- Search Providers ---
+search:
+  serper:
+    api_key: ""  # From SERPER_API_KEY env var
+    max_results: 5
+
+# --- Rate Limiting (ID-03, D8) ---
+rate_limits:
+  owner:
+    messages_per_day: 600
+    messages_per_hour: 80
+    messages_burst_5min: 20
+    model_calls_per_day: 240
+    model_calls_per_hour: 30
+  named_guest:
+    messages_per_day: 200
+    messages_per_hour: 40
+    model_calls_per_day: 80
+    model_calls_per_hour: 20
+  anonymous_guest:
+    messages_per_day_per_ip: 30
+    messages_per_session: 10
+    messages_per_hour: 8
+    model_calls_per_day_per_ip: 12
+    model_calls_per_session: 4
+
+# --- Logging ---
+logging:
+  level: "INFO"
+  log_dir: "data/logs"
+  json_format: true
+  correlation_ids: true
+
+# --- Backup ---
+backup:
+  enabled: true
+  interval_minutes: 30
+  qdrant_snapshot_timeout: 30  # ID-06: max barrier duration
+  write_queue_max: 100  # ID-06: max queued writes during snapshot

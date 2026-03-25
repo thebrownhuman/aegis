@@ -1,0 +1,13 @@
+Summarize the following conversation messages into a concise summary that preserves key information, decisions, and context needed for future turns.
+
+## Messages to Summarize
+{% for msg in messages %}
+**{{ msg.role }}**: {{ msg.content }}
+{% endfor %}
+
+## Instructions
+- Keep the summary under {{ max_tokens | default(200) }} tokens
+- Preserve: key facts, decisions made, action items, user preferences expressed
+- Omit: greetings, filler, redundant back-and-forth
+- Use bullet points for clarity
+- Write in third person ("The user asked about..." not "You asked about...")

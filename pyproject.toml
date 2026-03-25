@@ -1,0 +1,67 @@
+[tool.poetry]
+name = "aegis"
+version = "0.1.0"
+description = "Project Aegis — Locally-hosted multi-tenant personal AI platform"
+authors = ["Shivansh Mishra"]
+readme = "README.md"
+packages = [{include = "aegis"}]
+
+[tool.poetry.dependencies]
+python = ">=3.11,<4.0"
+fastapi = "^0.115"
+uvicorn = {extras = ["standard"], version = "^0.34"}
+websockets = "^14.0"
+langchain = "^0.3"
+langchain-ollama = "^0.3"
+langchain-nvidia-ai-endpoints = "^0.3"
+langchain-mistralai = "^0.2"
+langchain-groq = "^0.2"
+langchain-google-genai = "^2.0"
+openai = "^1.60"
+langgraph = "^0.2"
+qdrant-client = "^1.12"
+sqlalchemy = "^2.0"
+alembic = "^1.14"
+pydantic = "^2.10"
+pydantic-settings = "^2.7"
+pyyaml = "^6.0"
+python-jose = {extras = ["cryptography"], version = "^3.3"}
+passlib = {extras = ["bcrypt"], version = "^1.7"}
+httpx = "^0.28"
+pdfplumber = "^0.11"
+jinja2 = "^3.1"
+python-multipart = "^0.0.18"
+pyotp = "^2.9"
+structlog = "^24.4"
+tiktoken = "^0.8"
+apscheduler = "^3.10"
+cryptography = "^44.0"
+tenacity = "^9.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.0"
+pytest-asyncio = "^0.24"
+ruff = "^0.8"
+mypy = "^1.13"
+
+[tool.ruff]
+target-version = "py311"
+line-length = 100
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "N", "UP", "S", "B", "A", "C4", "SIM"]
+ignore = ["S101"]  # Allow assert in tests
+
+[tool.mypy]
+python_version = "3.11"
+strict = true
+warn_return_any = true
+warn_unused_configs = true
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
