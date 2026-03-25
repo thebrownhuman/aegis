@@ -20,6 +20,7 @@ from aegis.core.orchestrator import (
     plan_node,
     retrieve_node,
     route_after_classify,
+    route_after_error,
     route_after_plan,
     route_after_tool,
     route_model_node,
@@ -224,6 +225,52 @@ class TestNodes:
         }
         result = error_node(state)
         assert result["response"] == STATIC_FALLBACK_RESPONSE
+
+
+class TestErrorFallbackPath:
+    """Test the error → fallback → generate retry path (Codex fix #1)."""
+
+    def test_first_error_routes_to_generate(self) -> None:
+        """When error_node clears the error and sets fallback provider,
+        route_after_error should route to 'generate' for retry."""
+        # Simulate state AFTER error_node runs on first error
+        state: OrchestratorState = {
+            "error": None,  # error_node cleared this
+            "fallback_attempted": True,  # error_node set this
+            "provider_name": "ollama",  # error_node set fallback
+            "model_name": "qwen3:1.7b",
+            "response": "",  # no response yet
+        }
+        assert route_after_error(state) == "generate"
+
+    def test_final_static_response_routes_to_format(self) -> None:
+        """When all fallbacks are exhausted and static response is set,
+        route_after_error should route to 'format'."""
+        state: OrchestratorState = {
+            "error": "all_failed",
+            "fallback_attempted": True,
+            "response": STATIC_FALLBACK_RESPONSE,
+        }
+        assert route_after_error(state) == "format"
+
+    def test_error_with_no_response_routes_to_format(self) -> None:
+        """When error persists but no retry possible, route to format
+        which will use the static fallback."""
+        state: OrchestratorState = {
+            "error": "persistent_error",
+            "fallback_attempted": True,
+            "response": STATIC_FALLBACK_RESPONSE,
+        }
+        assert route_after_error(state) == "format"
+
+    def test_successful_response_after_fallback_routes_to_format(self) -> None:
+        """After fallback generate succeeds, route to format."""
+        state: OrchestratorState = {
+            "error": None,
+            "fallback_attempted": True,
+            "response": "Some actual response from fallback model",
+        }
+        assert route_after_error(state) == "format"
 
 
 class TestEndToEnd:

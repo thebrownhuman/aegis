@@ -34,10 +34,14 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
     pragmas = verify_pragmas()
     logger.info("aegis.database.pragmas", **pragmas)
 
-    # Run integrity check
+    # Run integrity check — fail fast on corruption
     integrity_ok = check_integrity()
     if not integrity_ok:
         logger.error("aegis.startup.integrity_failed")
+        raise RuntimeError(
+            "SQLite integrity check failed — database may be corrupted. "
+            "Restore from backup or delete data/aegis.db to start fresh."
+        )
 
     logger.info("aegis.ready", host=settings.app.host, port=settings.app.port)
 

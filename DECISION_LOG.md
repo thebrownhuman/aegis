@@ -126,6 +126,20 @@
 - **Verification:** Fresh DB test — `alembic upgrade head` on empty `test_fresh.db` creates 14 tables (13 app + alembic_version). Full test suite 150/150 still passes. Temp DB cleaned up after test.
 - **Impact:** Fresh environments now bootstrap correctly. This was the only path to schema creation since Sprint 1.1 Codex fix removed `Base.metadata.create_all()` from `main.py`.
 
+### DL-020: Codex review fixes (6 findings)
+- **Date:** 2026-03-25
+- **Context:** Codex reviewed Sprint 1.2 code and identified 6 findings (2 high, 3 medium, 1 low).
+- **Fixes applied:**
+  1. **HIGH — Dead fallback path in `route_after_error`:** The condition `error is None AND NOT fallback_attempted` was never true after `error_node` sets both. Fixed: route to `generate` when error is cleared and no response exists yet, regardless of `fallback_attempted`.
+  2. **HIGH — `get_db` with `@contextmanager`:** Incompatible with FastAPI `Depends()`. Removed `@contextmanager` decorator — plain generator works correctly with FastAPI's dependency injection.
+  3. **MED — Account pool not wired into router:** `ModelRouter.route()` now calls `get_pool()` for NIM/DeepSeek providers, selects next account via round-robin, and sets the API key per-call. `RoutingResult` includes `account_index`. Exhausted pools cause fallback to next provider in chain.
+  4. **MED — Startup continues on integrity failure:** `main.py` now raises `RuntimeError` if `check_integrity()` fails — fail-fast instead of running with a corrupted DB.
+  5. **MED — No migration-smoke test:** Added `test_migration_smoke.py` with 6 tests: all tables present, version stamped, column checks, FK checks, basic insert.
+  6. **LOW — No refusal flag for adversarial inputs:** Added `requires_safety_review: bool` field to `ClassificationResult`. Adversarial patterns set it to `True` for downstream safety enforcement.
+- **Additional fixes:** `get_pool()` now correctly resolves shared DeepSeek pool when looking up `deepseek_r1` or `deepseek_v3`.
+- **Tests added:** 4 error-fallback-path tests, 4 pool-integration tests, 6 migration-smoke tests, 3 safety-flag tests = 17 new tests.
+- **Verification:** 165/165 tests passing.
+
 ---
 
 *Add new entries below as development continues.*

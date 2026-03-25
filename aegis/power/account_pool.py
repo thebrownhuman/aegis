@@ -171,17 +171,24 @@ _pools: dict[str, AccountPool] = {}
 
 
 def get_pool(provider_name: str) -> AccountPool | None:
-    """Get or create an account pool for a provider."""
+    """Get or create an account pool for a provider.
+
+    DeepSeek-R1 and DeepSeek-V3 share a single pool keyed as "deepseek".
+    """
+    # Direct lookup
     if provider_name in _pools:
         return _pools[provider_name]
 
-    # Initialize from config
+    # DeepSeek models share the "deepseek" pool
+    if provider_name in ("deepseek_r1", "deepseek_v3") and "deepseek" in _pools:
+        return _pools["deepseek"]
+
+    # Initialize from config if not yet created
     cfg = settings.providers
     if provider_name == "nim" and cfg.nim.api_keys:
         _pools["nim"] = AccountPool("nim", cfg.nim.api_keys)
         return _pools["nim"]
     elif provider_name in ("deepseek_r1", "deepseek_v3") and cfg.deepseek.api_keys:
-        # Both DeepSeek models share the same account pool
         if "deepseek" not in _pools:
             _pools["deepseek"] = AccountPool("deepseek", cfg.deepseek.api_keys)
         return _pools["deepseek"]

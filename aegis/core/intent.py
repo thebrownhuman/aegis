@@ -51,6 +51,7 @@ class ClassificationResult:
     complexity: ComplexityTier
     expected_output_length: OutputLength
     uses_graph: bool  # True = full LangGraph, False = fast-path
+    requires_safety_review: bool = False  # True for adversarial/harmful inputs
 
     @property
     def is_simple(self) -> bool:
@@ -197,6 +198,7 @@ def classify(message: str) -> ClassificationResult:
             complexity=ComplexityTier.SIMPLE,
             expected_output_length=OutputLength.SHORT,
             uses_graph=False,
+            requires_safety_review=True,
         )
 
     # --- Detect multi-step patterns ---

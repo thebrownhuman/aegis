@@ -8,7 +8,6 @@ from __future__ import annotations
 
 import sqlite3
 from collections.abc import Generator
-from contextlib import contextmanager
 
 import structlog
 from sqlalchemy import create_engine, event, text
@@ -44,9 +43,17 @@ def _set_sqlite_pragmas(dbapi_connection: sqlite3.Connection, _: object) -> None
 SessionLocal = sessionmaker(bind=engine, autocommit=False, autoflush=False)
 
 
-@contextmanager
 def get_db() -> Generator[Session, None, None]:
-    """Dependency-injectable database session context manager."""
+    """FastAPI dependency-injectable database session.
+
+    Usage with FastAPI:
+        @app.get("/")
+        def endpoint(db: Session = Depends(get_db)):
+            ...
+
+    Plain generator (no @contextmanager) so FastAPI's Depends() handles
+    the yield protocol correctly.
+    """
     db = SessionLocal()
     try:
         yield db

@@ -8,9 +8,11 @@ from __future__ import annotations
 
 import pytest
 
+from unittest.mock import patch
+
 from aegis.core.intent import ComplexityTier
 from aegis.power.model_router import ModelRouter, ProviderInfo, ProviderStatus
-from aegis.power.account_pool import AccountPool, AccountState
+from aegis.power.account_pool import AccountPool, AccountState, _pools, get_pool
 
 
 class TestProviderInfo:
@@ -207,3 +209,60 @@ class TestAccountState:
         state.reset()
         assert not state.is_exhausted
         assert state.error_count == 0
+
+
+class TestPoolIntegrationWithRouter:
+    """Test that model router uses account pools for NIM/DeepSeek (Codex fix #3)."""
+
+    def _make_router_with_nim_keys(self) -> ModelRouter:
+        """Create a router with NIM keys injected via pool."""
+        router = ModelRouter()
+        # Manually inject a pool and mark provider as pool-managed
+        pool = AccountPool("nim", ["nim-key-1", "nim-key-2", "nim-key-3"])
+        _pools["nim"] = pool
+        router._providers["nim"].api_key = "pool-managed"
+        return router
+
+    def teardown_method(self) -> None:
+        """Clean up global pool registry."""
+        _pools.clear()
+
+    def test_nim_route_selects_from_pool(self) -> None:
+        router = self._make_router_with_nim_keys()
+        result = router.route(ComplexityTier.MEDIUM)
+        # NIM is first in medium chain and pool has keys
+        assert result.provider.name == "nim"
+        assert result.account_index is not None
+        assert result.provider.api_key in ("nim-key-1", "nim-key-2", "nim-key-3")
+
+    def test_nim_round_robin_across_calls(self) -> None:
+        router = self._make_router_with_nim_keys()
+        indices = []
+        for _ in range(6):
+            result = router.route(ComplexityTier.MEDIUM)
+            assert result.provider.name == "nim"
+            indices.append(result.account_index)
+        # Should cycle through 0,1,2,0,1,2
+        assert indices == [0, 1, 2, 0, 1, 2]
+
+    def test_exhausted_pool_falls_back(self) -> None:
+        router = self._make_router_with_nim_keys()
+        pool = _pools["nim"]
+        # Exhaust all accounts
+        for acc in pool._accounts:
+            acc.mark_exhausted()
+        result = router.route(ComplexityTier.MEDIUM)
+        # Should fall back past NIM to next in chain
+        assert result.provider.name != "nim"
+        assert result.is_fallback
+
+    def test_deepseek_route_uses_pool(self) -> None:
+        router = ModelRouter()
+        pool = AccountPool("deepseek", ["ds-key-1", "ds-key-2"])
+        _pools["deepseek"] = pool
+        router._providers["deepseek_r1"].api_key = "pool-managed"
+        result = router.route(ComplexityTier.COMPLEX)
+        # DeepSeek-R1 is first in complex chain
+        assert result.provider.name == "deepseek_r1"
+        assert result.account_index is not None
+        assert result.provider.api_key in ("ds-key-1", "ds-key-2")

@@ -381,11 +381,10 @@ def route_after_tool(state: OrchestratorState) -> str:
 
 def route_after_error(state: OrchestratorState) -> str:
     """After error handling, retry with fallback or respond."""
-    if state.get("error") is None and not state.get("fallback_attempted", False):
-        # Error was cleared, retry with fallback provider
+    # If error was cleared (fallback provider set), retry generation
+    if state.get("error") is None and not state.get("response"):
         return "generate"
-    if state.get("fallback_attempted") and state.get("response"):
-        return "format"
+    # If we have a final response (either from fallback or static), format it
     return "format"
 
 

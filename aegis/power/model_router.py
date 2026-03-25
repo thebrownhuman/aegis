@@ -14,6 +14,7 @@ import structlog
 
 from aegis.config import settings
 from aegis.core.intent import ComplexityTier
+from aegis.power.account_pool import AccountPool, get_pool
 
 logger = structlog.get_logger(__name__)
 
@@ -84,6 +85,7 @@ class RoutingResult:
     complexity: ComplexityTier
     is_fallback: bool = False
     fallback_reason: str | None = None
+    account_index: int | None = None  # Set when provider uses account pool
 
 
 # --- Tier → Provider fallback chains (from orchestrator_spec.md §4.2) ---
@@ -135,31 +137,31 @@ class ModelRouter:
             timeout=cfg.gemini.timeout,
         )
 
-        # NIM — uses first available key (account pool handles rotation)
-        nim_key = cfg.nim.api_keys[0] if cfg.nim.api_keys else ""
+        # NIM — pool-managed, availability based on pool state
+        nim_has_keys = bool(cfg.nim.api_keys)
         self._providers["nim"] = ProviderInfo(
             name="nim",
             model=cfg.nim.default_model,
-            api_key=nim_key,
+            api_key="pool-managed" if nim_has_keys else "",
             base_url=cfg.nim.base_url,
             timeout=cfg.nim.timeout,
         )
 
-        # DeepSeek-R1 (reasoning)
-        ds_key = cfg.deepseek.api_keys[0] if cfg.deepseek.api_keys else ""
+        # DeepSeek-R1 (reasoning) — pool-managed
+        ds_has_keys = bool(cfg.deepseek.api_keys)
         self._providers["deepseek_r1"] = ProviderInfo(
             name="deepseek_r1",
             model=cfg.deepseek.reasoning_model,
-            api_key=ds_key,
+            api_key="pool-managed" if ds_has_keys else "",
             base_url=cfg.deepseek.base_url,
             timeout=cfg.deepseek.timeout,
         )
 
-        # DeepSeek-V3 (general heavy)
+        # DeepSeek-V3 (general heavy) — pool-managed
         self._providers["deepseek_v3"] = ProviderInfo(
             name="deepseek_v3",
             model=cfg.deepseek.general_model,
-            api_key=ds_key,
+            api_key="pool-managed" if ds_has_keys else "",
             base_url=cfg.deepseek.base_url,
             timeout=cfg.deepseek.timeout,
         )
@@ -176,10 +178,15 @@ class ModelRouter:
         """Get a provider by name."""
         return self._providers.get(name)
 
+    # Providers that use account pools for round-robin key rotation
+    _POOLED_PROVIDERS = frozenset({"nim", "deepseek_r1", "deepseek_v3"})
+
     def route(self, complexity: ComplexityTier) -> RoutingResult:
         """Select the best provider for a given complexity tier.
 
         Walks the fallback chain until an available provider is found.
+        For pooled providers (NIM, DeepSeek), selects an account from
+        the pool and sets the active API key on the provider.
         Ollama is always the final fallback.
         """
         chain = TIER_FALLBACK_CHAINS.get(complexity, TIER_FALLBACK_CHAINS[ComplexityTier.SIMPLE])
@@ -188,31 +195,57 @@ class ModelRouter:
 
         for i, provider_name in enumerate(chain):
             provider = self._providers.get(provider_name)
-            if provider and provider.is_available():
-                if i > 0:
-                    is_fallback = True
-                    primary = chain[0]
-                    fallback_reason = f"{primary} unavailable, fell back to {provider_name}"
-                    logger.info(
-                        "router.fallback",
-                        complexity=complexity.value,
-                        primary=primary,
-                        selected=provider_name,
-                        reason=fallback_reason,
-                    )
+            if not provider:
+                continue
 
-                logger.debug(
-                    "router.selected",
+            # For pooled providers, check pool availability
+            account_index: int | None = None
+            if provider_name in self._POOLED_PROVIDERS:
+                pool = get_pool(provider_name)
+                if pool:
+                    if pool.is_exhausted:
+                        # All accounts in pool exhausted — skip provider
+                        continue
+                    account = pool.next_account()
+                    if account:
+                        provider.api_key = account.key
+                        account_index = account.index
+                    else:
+                        # next_account returned None (shouldn't happen if not exhausted)
+                        continue
+                else:
+                    # No pool configured — fall back to static key check
+                    if not provider.is_available():
+                        continue
+            elif not provider.is_available():
+                continue
+
+            if i > 0:
+                is_fallback = True
+                primary = chain[0]
+                fallback_reason = f"{primary} unavailable, fell back to {provider_name}"
+                logger.info(
+                    "router.fallback",
                     complexity=complexity.value,
-                    provider=provider_name,
-                    model=provider.model,
+                    primary=primary,
+                    selected=provider_name,
+                    reason=fallback_reason,
                 )
-                return RoutingResult(
-                    provider=provider,
-                    complexity=complexity,
-                    is_fallback=is_fallback,
-                    fallback_reason=fallback_reason,
-                )
+
+            logger.debug(
+                "router.selected",
+                complexity=complexity.value,
+                provider=provider_name,
+                model=provider.model,
+                account_index=account_index,
+            )
+            return RoutingResult(
+                provider=provider,
+                complexity=complexity,
+                is_fallback=is_fallback,
+                fallback_reason=fallback_reason,
+                account_index=account_index,
+            )
 
         # Should never reach here — Ollama is always in chain and always available
         ollama = self._providers["ollama"]
